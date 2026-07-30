@@ -16,7 +16,6 @@ export interface MedicalDocument {
   extractedText: string;
   fields: DocumentField[];
   tags: string[];
-  synthetic?: boolean;
   confirmed?: boolean;
   imagePreviewUrl?: string;
 }
@@ -30,7 +29,6 @@ export interface ChatMessage {
 }
 
 export interface InferenceEngineConfig {
-  engineType: 'fake' | 'gemma-local';
   modelPath: string;
   temperature: number;
   maxTokens: number;

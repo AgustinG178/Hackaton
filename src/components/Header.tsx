@@ -3,10 +3,10 @@ import { ShieldCheck } from 'lucide-react';
 
 interface HeaderProps {
   onOpenDeveloperSetup: () => void;
-  engineMode: 'fake' | 'gemma-local';
+  isConnected: boolean;
 }
 
-export const Header = ({ onOpenDeveloperSetup, engineMode }: HeaderProps) => {
+export const Header = ({ onOpenDeveloperSetup, isConnected }: HeaderProps) => {
   const [isPressing, setIsPressing] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -48,7 +48,7 @@ export const Header = ({ onOpenDeveloperSetup, engineMode }: HeaderProps) => {
         <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#B9D9D4] bg-[#E7F5F2] px-3 py-2 text-sm font-bold text-[#08665D]">
           <ShieldCheck className="h-4 w-4" aria-hidden="true" />
           <span className="hidden min-[390px]:inline">
-            {engineMode === 'gemma-local' ? 'Gemma local' : 'Privado'}
+            {isConnected ? 'Gemma local' : 'Sin conexión'}
           </span>
         </div>
       </div>

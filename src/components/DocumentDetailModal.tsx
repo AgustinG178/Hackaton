@@ -56,12 +56,6 @@ export const DocumentDetailModal = ({
             </div>
           </div>
 
-          {document.synthetic && (
-            <div className="rounded-xl border border-[#F1CD82] bg-[#FFF7E4] px-4 py-3 text-sm font-bold text-[#664A12]">
-              Documento sintético de demostración
-            </div>
-          )}
-
           <section>
             <h3 className="mb-2 text-lg font-black text-[#17243A]">Resumen</h3>
             <p className="rounded-2xl border border-[#D4DEDB] bg-white p-4 text-base leading-relaxed text-[#334359]">

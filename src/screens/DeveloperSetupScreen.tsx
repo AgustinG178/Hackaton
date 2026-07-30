@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { InferenceEngineConfig, EngineStats } from '../types';
-import { ArrowLeft, Cpu, Settings, Zap, HardDrive, ShieldAlert, CheckCircle2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Cpu, Settings, Zap, HardDrive, ShieldAlert, CheckCircle2, XCircle } from 'lucide-react';
 
 interface DeveloperSetupScreenProps {
   config: InferenceEngineConfig;
   onUpdateConfig: (newConfig: InferenceEngineConfig) => void;
   onClose: () => void;
   stats: EngineStats;
+  isConnected: boolean;
 }
 
 export const DeveloperSetupScreen: React.FC<DeveloperSetupScreenProps> = ({
@@ -14,28 +15,15 @@ export const DeveloperSetupScreen: React.FC<DeveloperSetupScreenProps> = ({
   onUpdateConfig,
   onClose,
   stats,
+  isConnected,
 }) => {
   const [localConfig, setLocalConfig] = useState<InferenceEngineConfig>(config);
   const [isSaved, setIsSaved] = useState(false);
-  const [isBenchmarking, setIsBenchmarking] = useState(false);
-  const [benchmarkResult, setBenchmarkResult] = useState<string | null>(null);
 
   const handleSave = () => {
     onUpdateConfig(localConfig);
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
-  };
-
-  const runBenchmark = () => {
-    setIsBenchmarking(true);
-    setBenchmarkResult(null);
-
-    setTimeout(() => {
-      setIsBenchmarking(false);
-      setBenchmarkResult(
-        `Prueba completada: Latencia promedio ${stats.lastResponseLatencyMs} ms | Rendimiento: ${stats.inferenceSpeedTps} tokens/s | RAM pico: ${stats.ramUsageMb + 20} MB.`
-      );
-    }, 1200);
   };
 
   return (
@@ -70,55 +58,31 @@ export const DeveloperSetupScreen: React.FC<DeveloperSetupScreenProps> = ({
         </div>
       </div>
 
-      {/* Mode Selection */}
+      {/* Engine Status */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
         <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
           <Cpu className="w-4 h-4 text-cyan-400" />
           <span>Motor de Inferencia Local</span>
         </h3>
 
-        <div className="grid grid-cols-1 gap-2">
-          <button
-            onClick={() => setLocalConfig({ ...localConfig, engineType: 'fake' })}
-            className={`p-3 rounded-xl border text-left transition-all ${
-              localConfig.engineType === 'fake'
-                ? 'bg-cyan-950/60 border-cyan-500 text-cyan-300'
-                : 'bg-slate-950 border-slate-800 text-slate-400'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-xs text-slate-100">
-                FakeLocalInferenceEngine (Simulado)
-              </span>
-              {localConfig.engineType === 'fake' && (
-                <CheckCircle2 className="w-4 h-4 text-cyan-400" />
-              )}
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Motor desacoplado liviano sin requerimiento de descargas de pesas binarias.
-            </p>
-          </button>
-
-          <button
-            onClick={() => setLocalConfig({ ...localConfig, engineType: 'gemma-local' })}
-            className={`p-3 rounded-xl border text-left transition-all ${
-              localConfig.engineType === 'gemma-local'
-                ? 'bg-cyan-950/60 border-cyan-500 text-cyan-300'
-                : 'bg-slate-950 border-slate-800 text-slate-400'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-xs text-slate-100">
-                Gemma-2B-IT Quantized (Native On-Device)
-              </span>
-              {localConfig.engineType === 'gemma-local' && (
-                <CheckCircle2 className="w-4 h-4 text-cyan-400" />
-              )}
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Ejecución nativa directa sobre la NPU / GPU con cuantización INT4.
-            </p>
-          </button>
+        <div
+          className={`p-3 rounded-xl border ${
+            isConnected ? 'bg-emerald-950/40 border-emerald-600/50' : 'bg-red-950/30 border-red-700/50'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-xs text-slate-100">{stats.activeModel}</span>
+            {isConnected ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <XCircle className="w-4 h-4 text-red-400" />
+            )}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-1">
+            {isConnected
+              ? 'Conectado a Ollama en la notebook.'
+              : 'Sin conexión. Iniciá Ollama con el modelo gemma4:e4b.'}
+          </p>
         </div>
       </div>
 
@@ -236,39 +200,19 @@ export const DeveloperSetupScreen: React.FC<DeveloperSetupScreenProps> = ({
         />
       </div>
 
-      {/* Stats & Benchmark Section */}
+      {/* Stats Section */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-            <Zap className="w-4 h-4 text-cyan-400" />
-            <span>Métricas del Dispositivo</span>
-          </h3>
-          <button
-            onClick={runBenchmark}
-            disabled={isBenchmarking}
-            className="text-[11px] text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded-lg flex items-center gap-1"
-          >
-            <RefreshCw className={`w-3 h-3 ${isBenchmarking ? 'animate-spin' : ''}`} />
-            <span>Probar Rendimiento</span>
-          </button>
-        </div>
+        <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+          <Zap className="w-4 h-4 text-cyan-400" />
+          <span>Última Respuesta</span>
+        </h3>
 
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-            <span className="text-slate-500 text-[10px] block">RAM Utilizada</span>
-            <span className="font-mono font-bold text-slate-100">{stats.ramUsageMb} MB</span>
-          </div>
-          <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-            <span className="text-slate-500 text-[10px] block">Velocidad</span>
-            <span className="font-mono font-bold text-slate-100">{stats.inferenceSpeedTps} t/s</span>
-          </div>
+        <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs">
+          <span className="text-slate-500 text-[10px] block">Latencia</span>
+          <span className="font-mono font-bold text-slate-100">
+            {stats.lastResponseLatencyMs > 0 ? `${stats.lastResponseLatencyMs} ms` : 'Sin datos aún'}
+          </span>
         </div>
-
-        {benchmarkResult && (
-          <p className="text-[11px] text-cyan-300 font-mono bg-cyan-950/40 p-2.5 rounded-xl border border-cyan-500/30 leading-relaxed">
-            {benchmarkResult}
-          </p>
-        )}
       </div>
 
       {/* Save Action */}

@@ -6,10 +6,10 @@ referencias verificables como `[D1]`, `[D2]` y `[D3]`.
 ## Estado actual
 
 - La interfaz web funciona y compila sin servicios externos.
-- Los documentos incluidos son sintéticos.
+- La historia arranca vacía; los documentos se cargan agregándolos de verdad.
 - El chat detecta automáticamente Ollama y usa `gemma4:e4b` cuando está
-  disponible. Si no lo encuentra, activa una demostración determinística
-  claramente identificada.
+  disponible. Si no lo encuentra, muestra un error claro en vez de generar
+  respuestas inventadas.
 - No usa Gemini API, Firebase, claves, autenticación ni backend.
 - La carpeta `android/` proveniente de Google AI Studio es solo un esqueleto:
   todavía no incluye una aplicación Android completa ni genera un APK.
@@ -58,6 +58,6 @@ El comportamiento esperado es:
 6. Responder “Ese dato no consta en los documentos guardados” cuando falte
    evidencia.
 
-No se debe mostrar el selector del modelo al usuario final ni usar respuestas
-simuladas sin una etiqueta visible.
+No se debe mostrar el selector del modelo al usuario final ni generar
+respuestas simuladas: si no hay modelo conectado, se debe mostrar un error.
 # Hackaton

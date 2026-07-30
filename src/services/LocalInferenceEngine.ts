@@ -16,138 +16,6 @@ export interface LocalInferenceEngine {
   getStats(): EngineStats;
 }
 
-const normalize = (value: string) =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-
-const fieldValue = (document: MedicalDocument, label: string) =>
-  document.fields.find((field) => normalize(field.label).includes(normalize(label)));
-
-export class FakeLocalInferenceEngine implements LocalInferenceEngine {
-  private lastLatency = 0;
-
-  getStats(): EngineStats {
-    return {
-      ramUsageMb: 0,
-      inferenceSpeedTps: 0,
-      activeModel: 'Modo demostración (sin modelo cargado)',
-      lastResponseLatencyMs: this.lastLatency,
-    };
-  }
-
-  async extractDocument(
-    inputName: string,
-    inputCategory?: string,
-    _inputFile?: File,
-  ): Promise<Omit<MedicalDocument, 'id' | 'date' | 'isoDate'>> {
-    await new Promise((resolve) => setTimeout(resolve, 900));
-
-    return {
-      title: inputName || 'Documento médico',
-      category: (inputCategory as MedicalDocument['category']) || 'Otro',
-      institution: 'Centro de salud (dato sintético)',
-      summary:
-        'Extracción simulada para probar el recorrido de revisión y guardado. Reemplazar por Gemma 4 local.',
-      extractedText:
-        'DATOS SINTÉTICOS\nEsta extracción es una demostración y no proviene del archivo seleccionado.',
-      fields: [
-        { label: 'Estado', value: 'Necesita revisión' },
-        { label: 'Origen', value: 'Demostración sintética' },
-      ],
-      tags: ['Demostración'],
-      synthetic: true,
-      confirmed: false,
-    };
-  }
-
-  async queryHistory(
-    prompt: string,
-    documents: MedicalDocument[],
-  ): Promise<{ answer: string; referencedDocIds: string[]; latencyMs: number }> {
-    const startTime = performance.now();
-    await new Promise((resolve) => setTimeout(resolve, 350));
-
-    const query = normalize(prompt);
-    const confirmed = documents.filter((document) => document.confirmed !== false);
-    const newestFirst = [...confirmed].sort((a, b) => b.isoDate.localeCompare(a.isoDate));
-
-    let answer = '';
-    let referencedDocIds: string[] = [];
-
-    if (/animo|animicamente|emocional/.test(query)) {
-      const mentalHealthDocument = newestFirst.find((document) =>
-        /salud mental|psicolog|psiquiatr|estado de animo/.test(
-          normalize(
-            [document.title, document.summary, document.extractedText, ...document.tags].join(' '),
-          ),
-        ),
-      );
-      if (!mentalHealthDocument) {
-        answer = `Revisé tus ${confirmed.length} documentos: hay estudios, consultas y recetas, pero no encuentro evaluaciones de salud mental ni notas sobre tu estado de ánimo. Por eso no puedo determinar cómo te sentís a partir de esta historia. Si querés, contame cómo te venís sintiendo.`;
-      }
-    } else if (/medicamento|medicacion|receta|recetaron|enalapril/.test(query)) {
-      const prescription = newestFirst.find(
-        (document) =>
-          document.category === 'Receta' &&
-          (fieldValue(document, 'medicamento') || document.tags.some((tag) => normalize(tag) === 'medicamento')),
-      );
-
-      if (prescription) {
-        const medication = fieldValue(prescription, 'medicamento')?.value;
-        const dose = fieldValue(prescription, 'dosis')?.value;
-        answer = `El último medicamento recetado que consta en tu historia es ${medication || 'el indicado en la receta'}, ${dose || 'con la dosis registrada en el documento'} [${prescription.id}].`;
-        referencedDocIds = [prescription.id];
-      }
-    } else if (/analisis|laboratorio|sangre|glucemia|colesterol/.test(query)) {
-      const laboratory = newestFirst.find((document) => document.category === 'Análisis');
-      if (laboratory) {
-        answer = `Tu último análisis registrado es del ${laboratory.date}. ${laboratory.summary} [${laboratory.id}].`;
-        referencedDocIds = [laboratory.id];
-      }
-    } else if (/columna|espalda|resonancia|lumbar|l4|l5/.test(query)) {
-      const imaging = newestFirst.find((document) => document.category === 'Imagenología');
-      if (imaging) {
-        answer = `En el documento figura: ${imaging.summary} [${imaging.id}].`;
-        referencedDocIds = [imaging.id];
-      }
-    } else if (/ultimo|ultima|reciente/.test(query)) {
-      const latest = newestFirst[0];
-      if (latest) {
-        answer = `El documento más reciente es “${latest.title}”, del ${latest.date}. ${latest.summary} [${latest.id}].`;
-        referencedDocIds = [latest.id];
-      }
-    } else if (/resumen|historia|historial|documentos|todo/.test(query)) {
-      referencedDocIds = newestFirst.slice(0, 3).map((document) => document.id);
-      answer = newestFirst
-        .slice(0, 3)
-        .map((document) => `${document.date}: ${document.summary} [${document.id}]`)
-        .join('\n\n');
-    } else {
-      const terms = query.split(/\s+/).filter((term) => term.length > 3);
-      const match = newestFirst.find((document) => {
-        const searchable = normalize(
-          [document.title, document.summary, document.extractedText, ...document.tags].join(' '),
-        );
-        return terms.some((term) => searchable.includes(term));
-      });
-
-      if (match) {
-        answer = `${match.summary} [${match.id}].`;
-        referencedDocIds = [match.id];
-      }
-    }
-
-    if (!answer) {
-      answer = `Revisé tus ${confirmed.length} documentos, pero no encontré información directamente relacionada con esa pregunta. Por eso no puedo responderla de manera confiable. Probá indicando un estudio, una fecha o un medicamento.`;
-    }
-
-    this.lastLatency = Math.round(performance.now() - startTime);
-    return { answer, referencedDocIds, latencyMs: this.lastLatency };
-  }
-}
-
 const CHAT_SYSTEM_PROMPT = `Sos Historia Clara, un asistente que ayuda a una persona a entender y consultar su historia personal de salud.
 
 REGLAS DE RESPUESTA:
@@ -189,13 +57,13 @@ const buildDocumentContext = (documents: MedicalDocument[]) =>
       texto_fuente: document.extractedText,
     }));
 
-export class OllamaLocalInferenceEngine extends FakeLocalInferenceEngine {
+export class OllamaLocalInferenceEngine implements LocalInferenceEngine {
+  private lastLatencyMs = 0;
+
   constructor(
     private readonly baseUrl = '/ollama',
     private readonly model = 'gemma4:e4b',
-  ) {
-    super();
-  }
+  ) {}
 
   async isAvailable(): Promise<boolean> {
     try {
@@ -223,16 +91,16 @@ export class OllamaLocalInferenceEngine extends FakeLocalInferenceEngine {
     });
   }
 
-  override getStats(): EngineStats {
+  getStats(): EngineStats {
     return {
       ramUsageMb: 0,
       inferenceSpeedTps: 0,
       activeModel: `${this.model} · Ollama local`,
-      lastResponseLatencyMs: 0,
+      lastResponseLatencyMs: this.lastLatencyMs,
     };
   }
 
-  override async extractDocument(
+  async extractDocument(
     inputName: string,
     inputCategory?: string,
     inputFile?: File,
@@ -258,7 +126,12 @@ Respondé exclusivamente con JSON válido:
   "evidencia_textual": "transcripción que respalda el resumen",
   "campos": [{"nombre":"campo","valor":"valor","unidad":"unidad opcional"}],
   "necesita_confirmacion": ["datos borrosos o ambiguos"]
-}`;
+}
+Si el documento indica un medicamento o tratamiento (por ejemplo una Receta), incluí en "campos" tres entradas separadas en vez de combinarlas en una sola:
+- "Dosis": la cantidad por toma (ej. "1 comprimido", "500 mg").
+- "Frecuencia": cada cuánto se toma (ej. "cada 12 horas", "una vez al día").
+- "Duración del tratamiento": por cuánto tiempo (ej. "10 días", "30 días", "indefinido" si no se especifica).
+Si alguno de estos tres datos no figura en el documento, omitilo en vez de inventarlo.`;
 
     const response = await fetch(`${this.baseUrl}/api/generate`, {
       method: 'POST',
@@ -305,12 +178,11 @@ Respondé exclusivamente con JSON válido:
           unit: field.unidad || undefined,
         })),
       tags: [category, ...(parsed.necesita_confirmacion || []).map((item) => `Revisar: ${item}`)],
-      synthetic: false,
       confirmed: false,
     };
   }
 
-  override async queryHistory(
+  async queryHistory(
     prompt: string,
     documents: MedicalDocument[],
   ): Promise<{ answer: string; referencedDocIds: string[]; latencyMs: number }> {
@@ -356,12 +228,11 @@ RESPUESTA:`;
       .map((match) => match[1])
       .filter((id, index, values) => validIds.has(id) && values.indexOf(id) === index);
 
+    this.lastLatencyMs = Math.round(performance.now() - startTime);
     return {
       answer,
       referencedDocIds,
-      latencyMs: Math.round(performance.now() - startTime),
+      latencyMs: this.lastLatencyMs,
     };
   }
 }
-
-export const defaultLocalEngine = new FakeLocalInferenceEngine();

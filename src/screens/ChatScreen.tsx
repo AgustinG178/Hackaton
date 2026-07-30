@@ -9,8 +9,7 @@ interface ChatScreenProps {
   onReferenceClick: (docId: string) => void;
   isGenerating: boolean;
   onClearChat: () => void;
-  isDemo: boolean;
-  engineLabel: string;
+  isConnected: boolean;
 }
 
 export const ChatScreen = ({
@@ -20,8 +19,7 @@ export const ChatScreen = ({
   onReferenceClick,
   isGenerating,
   onClearChat,
-  isDemo,
-  engineLabel,
+  isConnected,
 }: ChatScreenProps) => {
   const [inputPrompt, setInputPrompt] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -80,14 +78,13 @@ export const ChatScreen = ({
         )}
       </div>
 
-      {isDemo && (
-        <div className="mb-3 rounded-xl border border-[#F1CD82] bg-[#FFF7E4] px-3 py-2 text-sm font-bold text-[#664A12]">
-          Modo demostración · respuestas con datos sintéticos
-        </div>
-      )}
-      {!isDemo && (
+      {isConnected ? (
         <div className="mb-3 rounded-xl border border-[#B9D9D4] bg-[#E7F5F2] px-3 py-2 text-sm font-bold text-[#174A45]">
-          {engineLabel} · sin nube
+          Gemma 4 E4B · ejecución local en la notebook · sin nube
+        </div>
+      ) : (
+        <div className="mb-3 rounded-xl border border-[#F1CD82] bg-[#FFF7E4] px-3 py-2 text-sm font-bold text-[#664A12]">
+          Sin conexión con Gemma · abrí Ollama en la notebook para consultar tu historia
         </div>
       )}
 
@@ -139,7 +136,6 @@ export const ChatScreen = ({
                 }`}
               >
                 {message.timestamp}
-                {message.sender === 'assistant' && isDemo ? ' · Demostración' : ''}
               </p>
             </div>
             {message.sender === 'user' && (
