@@ -1,4 +1,5 @@
 import { EngineStats, InferenceEngineConfig, MedicalDocument } from '../types';
+import { enhanceImageForOCR } from './enhanceImageForOCR';
 
 export interface LocalInferenceEngine {
   queryHistory(
@@ -244,8 +245,12 @@ export class OllamaLocalInferenceEngine extends FakeLocalInferenceEngine {
       );
     }
 
+    const enhancedFiles = await Promise.all(
+      imageFiles.slice(0, 3).map((file) => enhanceImageForOCR(file).catch(() => file)),
+    );
+
     const imagesBase64 = await Promise.all(
-      imageFiles.slice(0, 3).map(
+      enhancedFiles.map(
         (file) =>
           new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
@@ -261,16 +266,23 @@ export class OllamaLocalInferenceEngine extends FakeLocalInferenceEngine {
 
     const prompt = `Analizá esta${
       imagesBase64.length > 1 ? 's páginas' : ' imagen'
-    } de un documento médico (puede ser una foto o una página escaneada de un PDF). No inventes ni interpretes.
-Respondé exclusivamente con JSON válido:
+    } de un documento médico. Puede tener letra manuscrita difícil de leer, mala
+iluminación o estar en ángulo. Hacé tu mejor esfuerzo: extraé todo lo que
+puedas leer con razonable confianza, aunque sea parcial. No inventes datos
+que no estén en la imagen, pero tampoco te niegues a responder solo porque
+hay letra manuscrita, partes borrosas o baja calidad de foto. Si una
+palabra puntual es realmente ilegible, escribí "(ilegible)" en ese campo en
+vez de dejar todo el documento sin procesar.
+Respondé exclusivamente con JSON válido, siempre, sin importar cuán difícil
+sea leer la imagen:
 {
   "titulo": "nombre breve",
   "tipo": "Análisis|Imagenología|Especialista|Receta|Otro",
   "institucion": "texto visible o No informada",
-  "resumen": "hechos principales sin diagnóstico nuevo",
-  "evidencia_textual": "transcripción que respalda el resumen",
+  "resumen": "hechos principales que pudiste leer, sin diagnóstico nuevo",
+  "evidencia_textual": "transcripción de lo que alcanzás a leer, aunque sea parcial",
   "campos": [{"nombre":"campo","valor":"valor","unidad":"unidad opcional"}],
-  "necesita_confirmacion": ["datos borrosos o ambiguos"]
+  "necesita_confirmacion": ["datos borrosos, dudosos o manuscritos a revisar"]
 }`;
 
     const response = await fetch(`${this.baseUrl}/api/generate`, {
