@@ -288,10 +288,20 @@ PROHIBIDO:
   por uno con su cifra exacta, no calificarlos en general.
 - Omitir un valor solo porque hay muchos: listalos todos en "campos", cada
   parámetro con su propia entrada.
+- COMPLETAR UN PANEL "TÍPICO" DE MEMORIA. Nunca agregues parámetros de
+  laboratorio estándar (glucosa, BUN, creatinina, sodio, potasio, cloruro,
+  hemoglobina, etc.) ni sus rangos de referencia habituales a menos que esa
+  palabra exacta esté escrita en la imagen. Cada fila que pongas en
+  "campos" tiene que corresponder a algo que puedas señalar con el dedo en
+  la imagen; si no podés citar la palabra o número exacto que la generó,
+  no la incluyas. Prohibido inventar un tipo de documento distinto al que
+  ves (por ejemplo, no conviertas una receta de medicamentos en un análisis
+  de sangre).
 
 Si podés distinguir aunque sea una palabra o un número, usalo. Solo marcá
 "(ilegible)" en un campo puntual cuando de verdad no se distingue ningún
-carácter ahí, nunca para el documento completo.
+carácter ahí, nunca para el documento completo. Ante la duda entre inventar
+un dato "razonable" y dejarlo afuera, siempre dejalo afuera.
 
 No inventes datos que no estén en la imagen. Respondé exclusivamente con
 JSON válido, siempre:
