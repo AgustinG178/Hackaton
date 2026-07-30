@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { SAMPLE_NEW_DOCUMENTS } from '../data/initialData';
 import { LocalInferenceEngine } from '../services/LocalInferenceEngine';
+import { pdfFileToImages } from '../services/pdfToImages';
 import { MedicalDocument } from '../types';
 
 interface AddDocumentScreenProps {
@@ -24,7 +25,9 @@ export const AddDocumentScreen = ({
   nextDocNumber,
 }: AddDocumentScreenProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [pdfPageFiles, setPdfPageFiles] = useState<File[]>([]);
+  const [isConvertingPdf, setIsConvertingPdf] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<(typeof SAMPLE_NEW_DOCUMENTS)[number] | null>(null);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<MedicalDocument['category']>('Otro');
@@ -32,26 +35,42 @@ export const AddDocumentScreen = ({
   const [extractedDocument, setExtractedDocument] = useState<MedicalDocument | null>(null);
 
   useEffect(() => {
-    if (!selectedFile?.type.startsWith('image/')) {
-      setPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(selectedFile);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [selectedFile]);
+    return () => {
+      previewUrls.forEach((url) => {
+        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const selectFile = (event: ChangeEvent<HTMLInputElement>) => {
+  const selectFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    setSelectedFile(file);
     setSelectedPreset(null);
     setTitle(file.name.replace(/\.[^/.]+$/, ''));
+
+    if (file.type === 'application/pdf') {
+      setIsConvertingPdf(true);
+      try {
+        const pages = await pdfFileToImages(file);
+        setSelectedFile(pages[0]?.file ?? file);
+        setPreviewUrls(pages.map((page) => page.dataUrl));
+        setPdfPageFiles(pages.map((page) => page.file));
+      } finally {
+        setIsConvertingPdf(false);
+      }
+    } else {
+      setSelectedFile(file);
+      setPdfPageFiles([]);
+      setPreviewUrls([URL.createObjectURL(file)]);
+    }
   };
 
   const selectPreset = (preset: (typeof SAMPLE_NEW_DOCUMENTS)[number]) => {
     setSelectedPreset(preset);
     setSelectedFile(null);
+    setPdfPageFiles([]);
+    setPreviewUrls([]);
     setTitle(preset.title);
     setCategory(preset.category);
   };
@@ -59,9 +78,10 @@ export const AddDocumentScreen = ({
   const analyze = async () => {
     setIsExtracting(true);
     try {
+      const filesForGemma = pdfPageFiles.length > 0 ? pdfPageFiles : selectedFile ? [selectedFile] : [];
       const result = selectedPreset
         ? { ...selectedPreset, synthetic: true, confirmed: false }
-        : await engine.extractDocument(title || 'Documento médico', category, selectedFile || undefined);
+        : await engine.extractDocument(title || 'Documento médico', category, filesForGemma);
       const now = new Date();
       setExtractedDocument({
         ...result,
@@ -73,6 +93,7 @@ export const AddDocumentScreen = ({
         }),
         isoDate: now.toISOString().slice(0, 10),
         title: title || result.title,
+        imagePreviewUrls: selectedPreset ? undefined : previewUrls,
       });
     } finally {
       setIsExtracting(false);
@@ -173,25 +194,40 @@ export const AddDocumentScreen = ({
       </div>
 
       <section className="rounded-2xl border-2 border-dashed border-[#8DBBB5] bg-white p-5 text-center">
-        {previewUrl ? (
-          <img
-            src={previewUrl}
-            alt="Vista previa del documento"
-            className="mx-auto mb-4 max-h-52 rounded-xl border border-[#D4DEDB] object-contain"
-          />
+        {isConvertingPdf ? (
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#E0F2EF] text-[#087F73]">
+            <LoaderCircle className="h-8 w-8 animate-spin" />
+          </div>
+        ) : previewUrls.length > 0 ? (
+          <div className="mx-auto mb-4 flex max-h-52 gap-2 overflow-x-auto">
+            {previewUrls.map((url, index) => (
+              <img
+                key={index}
+                src={url}
+                alt={`Página ${index + 1} del documento`}
+                className="h-52 shrink-0 rounded-xl border border-[#D4DEDB] object-contain"
+              />
+            ))}
+          </div>
         ) : (
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#E0F2EF] text-[#087F73]">
             <Camera className="h-8 w-8" />
           </div>
         )}
         <h3 className="text-xl font-extrabold text-[#17243A]">
-          {selectedFile ? selectedFile.name : 'Elegí una foto del documento'}
+          {isConvertingPdf
+            ? 'Convirtiendo PDF…'
+            : selectedFile
+              ? selectedFile.name
+              : 'Elegí una foto o un PDF del documento'}
         </h3>
-        <p className="mt-2 text-base text-[#536273]">Usá buena luz y evitá cortar los bordes.</p>
+        <p className="mt-2 text-base text-[#536273]">
+          Usá buena luz y evitá cortar los bordes. También podés subir un PDF escaneado.
+        </p>
         <label className="mt-4 inline-flex min-h-14 cursor-pointer items-center gap-2 rounded-2xl bg-[#087F73] px-5 text-base font-extrabold text-white">
           <Upload className="h-5 w-5" />
-          Seleccionar imagen
-          <input type="file" accept="image/*" capture="environment" onChange={selectFile} className="hidden" />
+          Seleccionar imagen o PDF
+          <input type="file" accept="image/*,application/pdf" onChange={selectFile} className="hidden" />
         </label>
       </section>
 
@@ -246,7 +282,7 @@ export const AddDocumentScreen = ({
       )}
 
       <button
-        disabled={(!selectedFile && !selectedPreset) || isExtracting}
+        disabled={(!selectedFile && !selectedPreset) || isExtracting || isConvertingPdf}
         onClick={analyze}
         className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#087F73] px-5 text-lg font-extrabold text-white disabled:bg-[#A8B5B2]"
       >

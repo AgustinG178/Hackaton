@@ -10,7 +10,7 @@ export interface LocalInferenceEngine {
   extractDocument(
     inputName: string,
     inputCategory?: string,
-    inputFile?: File,
+    inputFiles?: File[],
   ): Promise<Omit<MedicalDocument, 'id' | 'date' | 'isoDate'>>;
 
   getStats(): EngineStats;
@@ -40,7 +40,7 @@ export class FakeLocalInferenceEngine implements LocalInferenceEngine {
   async extractDocument(
     inputName: string,
     inputCategory?: string,
-    _inputFile?: File,
+    _inputFiles?: File[],
   ): Promise<Omit<MedicalDocument, 'id' | 'date' | 'isoDate'>> {
     await new Promise((resolve) => setTimeout(resolve, 900));
 
@@ -235,20 +235,33 @@ export class OllamaLocalInferenceEngine extends FakeLocalInferenceEngine {
   override async extractDocument(
     inputName: string,
     inputCategory?: string,
-    inputFile?: File,
+    inputFiles?: File[],
   ): Promise<Omit<MedicalDocument, 'id' | 'date' | 'isoDate'>> {
-    if (!inputFile || !inputFile.type.startsWith('image/')) {
-      throw new Error('Gemma necesita una imagen JPG, PNG o WEBP para extraer los datos.');
+    const imageFiles = (inputFiles || []).filter((file) => file.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
+      throw new Error(
+        'Gemma necesita al menos una imagen (JPG, PNG o una página de PDF convertida) para extraer los datos.',
+      );
     }
 
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(inputFile);
-    });
-    const imageBase64 = dataUrl.substring(dataUrl.indexOf(',') + 1);
-    const prompt = `Analizá esta imagen de un documento médico. No inventes ni interpretes.
+    const imagesBase64 = await Promise.all(
+      imageFiles.slice(0, 3).map(
+        (file) =>
+          new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const dataUrl = String(reader.result);
+              resolve(dataUrl.substring(dataUrl.indexOf(',') + 1));
+            };
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(file);
+          }),
+      ),
+    );
+
+    const prompt = `Analizá esta${
+      imagesBase64.length > 1 ? 's páginas' : ' imagen'
+    } de un documento médico (puede ser una foto o una página escaneada de un PDF). No inventes ni interpretes.
 Respondé exclusivamente con JSON válido:
 {
   "titulo": "nombre breve",
@@ -266,7 +279,7 @@ Respondé exclusivamente con JSON válido:
       body: JSON.stringify({
         model: this.model,
         prompt,
-        images: [imageBase64],
+        images: imagesBase64,
         format: 'json',
         stream: false,
         think: false,

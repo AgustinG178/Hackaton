@@ -19,6 +19,7 @@ export interface MedicalDocument {
   synthetic?: boolean;
   confirmed?: boolean;
   imagePreviewUrl?: string;
+  imagePreviewUrls?: string[];
 }
 
 export interface ChatMessage {
