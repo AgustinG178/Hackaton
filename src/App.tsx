@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ChatMessage, InferenceEngineConfig, MedicalDocument, TabType } from './types';
-import { INITIAL_DOCUMENTS } from './data/initialData';
-import {
-  FakeLocalInferenceEngine,
-  LocalInferenceEngine,
-  OllamaLocalInferenceEngine,
-} from './services/LocalInferenceEngine';
+import { OllamaLocalInferenceEngine } from './services/LocalInferenceEngine';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
 import { HistoryScreen } from './screens/HistoryScreen';
@@ -16,13 +11,14 @@ import { DocumentDetailModal } from './components/DocumentDetailModal';
 import { ReferenceModal } from './components/ReferenceModal';
 
 export default function App() {
-  const [engine, setEngine] = useState<LocalInferenceEngine>(() => new FakeLocalInferenceEngine());
+  const [engine] = useState(() => new OllamaLocalInferenceEngine('/ollama', 'gemma4:e4b'));
+  const [isEngineConnected, setIsEngineConnected] = useState(false);
   const [documents, setDocuments] = useState<MedicalDocument[]>(() => {
     try {
       const stored = localStorage.getItem('historia-clara-documents-v2');
-      return stored ? (JSON.parse(stored) as MedicalDocument[]) : INITIAL_DOCUMENTS;
+      return stored ? (JSON.parse(stored) as MedicalDocument[]) : [];
     } catch {
-      return INITIAL_DOCUMENTS;
+      return [];
     }
   });
   const [activeTab, setActiveTab] = useState<TabType>('history');
@@ -30,7 +26,6 @@ export default function App() {
   const [selectedDocForReference, setSelectedDocForReference] = useState<MedicalDocument | null>(null);
   const [showDeveloperSetup, setShowDeveloperSetup] = useState(false);
   const [engineConfig, setEngineConfig] = useState<InferenceEngineConfig>({
-    engineType: 'fake',
     modelPath: '',
     temperature: 0.1,
     maxTokens: 384,
@@ -55,14 +50,11 @@ export default function App() {
   }, [documents]);
 
   useEffect(() => {
-    const ollamaEngine = new OllamaLocalInferenceEngine('/ollama', 'gemma4:e4b');
-    void ollamaEngine.isAvailable().then((available) => {
-      if (!available) return;
-      setEngine(ollamaEngine);
-      setEngineConfig((current) => ({ ...current, engineType: 'gemma-local' }));
-      void ollamaEngine.warmUp();
+    void engine.isAvailable().then((available) => {
+      setIsEngineConnected(available);
+      if (available) void engine.warmUp();
     });
-  }, []);
+  }, [engine]);
 
   const handleDocumentAdded = (newDocument: MedicalDocument) => {
     setDocuments((current) => [newDocument, ...current]);
@@ -130,6 +122,7 @@ export default function App() {
         onUpdateConfig={setEngineConfig}
         onClose={() => setShowDeveloperSetup(false)}
         stats={engine.getStats()}
+        isConnected={isEngineConnected}
       />
     );
   }
@@ -138,7 +131,7 @@ export default function App() {
     <div className="min-h-screen bg-[#F5F8F7] text-[#17243A]">
       <Header
         onOpenDeveloperSetup={() => setShowDeveloperSetup(true)}
-        engineMode={engineConfig.engineType}
+        isConnected={isEngineConnected}
       />
 
       <main>
@@ -166,12 +159,7 @@ export default function App() {
             onReferenceClick={handleReferenceClick}
             isGenerating={isGenerating}
             onClearChat={() => setMessages([])}
-            isDemo={engineConfig.engineType === 'fake'}
-            engineLabel={
-              engineConfig.engineType === 'gemma-local'
-                ? 'Gemma 4 E4B · ejecución local en la notebook'
-                : 'Respuestas programadas · sin modelo conectado'
-            }
+            isConnected={isEngineConnected}
           />
         )}
       </main>

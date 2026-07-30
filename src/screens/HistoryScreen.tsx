@@ -53,15 +53,6 @@ export const HistoryScreen = ({
         </p>
       </section>
 
-      <div className="flex items-start gap-3 rounded-2xl border border-[#F1CD82] bg-[#FFF7E4] p-4 text-[#664A12]">
-        <span className="mt-0.5 rounded-md bg-[#F2B544] px-2 py-1 text-xs font-black text-[#3D2A05]">
-          DEMO
-        </span>
-        <p className="text-sm font-semibold leading-relaxed">
-          Todos los datos que ves son sintéticos y se usan solo para demostrar la aplicación.
-        </p>
-      </div>
-
       <div className="flex items-center gap-3 rounded-2xl border border-[#B9D9D4] bg-[#E7F5F2] p-4">
         <ShieldCheck className="h-7 w-7 shrink-0 text-[#087F73]" />
         <div>
@@ -115,6 +106,12 @@ export const HistoryScreen = ({
               onClick={onSelectDocument}
             />
           ))}
+        </div>
+      ) : documents.length === 0 ? (
+        <div className="rounded-2xl border border-[#D4DEDB] bg-white p-8 text-center">
+          <FolderOpen className="mx-auto h-12 w-12 text-[#7E8B98]" />
+          <h3 className="mt-3 text-xl font-extrabold text-[#17243A]">Todavía no agregaste documentos</h3>
+          <p className="mt-2 text-base text-[#536273]">Agregá tu primer documento para empezar tu historia.</p>
         </div>
       ) : (
         <div className="rounded-2xl border border-[#D4DEDB] bg-white p-8 text-center">

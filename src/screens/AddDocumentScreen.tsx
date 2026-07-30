@@ -4,11 +4,9 @@ import {
   Camera,
   Check,
   ChevronLeft,
-  FileImage,
   LoaderCircle,
   Upload,
 } from 'lucide-react';
-import { SAMPLE_NEW_DOCUMENTS } from '../data/initialData';
 import { LocalInferenceEngine } from '../services/LocalInferenceEngine';
 import { MedicalDocument } from '../types';
 
@@ -25,10 +23,10 @@ export const AddDocumentScreen = ({
 }: AddDocumentScreenProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [selectedPreset, setSelectedPreset] = useState<(typeof SAMPLE_NEW_DOCUMENTS)[number] | null>(null);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<MedicalDocument['category']>('Otro');
   const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionError, setExtractionError] = useState<string | null>(null);
   const [extractedDocument, setExtractedDocument] = useState<MedicalDocument | null>(null);
 
   useEffect(() => {
@@ -45,23 +43,14 @@ export const AddDocumentScreen = ({
     const file = event.target.files?.[0];
     if (!file) return;
     setSelectedFile(file);
-    setSelectedPreset(null);
     setTitle(file.name.replace(/\.[^/.]+$/, ''));
-  };
-
-  const selectPreset = (preset: (typeof SAMPLE_NEW_DOCUMENTS)[number]) => {
-    setSelectedPreset(preset);
-    setSelectedFile(null);
-    setTitle(preset.title);
-    setCategory(preset.category);
   };
 
   const analyze = async () => {
     setIsExtracting(true);
+    setExtractionError(null);
     try {
-      const result = selectedPreset
-        ? { ...selectedPreset, synthetic: true, confirmed: false }
-        : await engine.extractDocument(title || 'Documento médico', category, selectedFile || undefined);
+      const result = await engine.extractDocument(title || 'Documento médico', category, selectedFile || undefined);
       const now = new Date();
       setExtractedDocument({
         ...result,
@@ -74,6 +63,10 @@ export const AddDocumentScreen = ({
         isoDate: now.toISOString().slice(0, 10),
         title: title || result.title,
       });
+    } catch (error) {
+      setExtractionError(
+        error instanceof Error ? error.message : 'No se pudo analizar el documento. Volvé a intentarlo.',
+      );
     } finally {
       setIsExtracting(false);
     }
@@ -90,18 +83,9 @@ export const AddDocumentScreen = ({
           </p>
         </div>
 
-        {extractedDocument.synthetic ? (
-          <div className="flex gap-3 rounded-2xl border border-[#F1CD82] bg-[#FFF7E4] p-4 text-[#664A12]">
-            <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0" />
-            <p className="text-base font-semibold leading-relaxed">
-              Extracción sintética: Gemma local no está conectado. No guardes estos datos como reales.
-            </p>
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-[#B9D9D4] bg-[#E7F5F2] p-4 text-base font-semibold text-[#174A45]">
-            Gemma leyó esta foto localmente. Compará los datos con el documento antes de guardarlos.
-          </div>
-        )}
+        <div className="rounded-2xl border border-[#B9D9D4] bg-[#E7F5F2] p-4 text-base font-semibold text-[#174A45]">
+          Gemma leyó esta foto localmente. Compará los datos con el documento antes de guardarlos.
+        </div>
 
         <section className="space-y-4 rounded-2xl border border-[#D4DEDB] bg-white p-5 shadow-sm">
           <label className="block">
@@ -195,30 +179,14 @@ export const AddDocumentScreen = ({
         </label>
       </section>
 
-      <div>
-        <p className="mb-2 text-sm font-extrabold text-[#526171]">O usá un documento sintético</p>
-        <div className="space-y-2">
-          {SAMPLE_NEW_DOCUMENTS.map((preset) => (
-            <button
-              key={preset.title}
-              onClick={() => selectPreset(preset)}
-              className={`flex min-h-14 w-full items-center gap-3 rounded-xl border-2 p-3 text-left ${
-                selectedPreset?.title === preset.title
-                  ? 'border-[#087F73] bg-[#E7F5F2]'
-                  : 'border-[#D4DEDB] bg-white'
-              }`}
-            >
-              <FileImage className="h-6 w-6 shrink-0 text-[#087F73]" />
-              <span>
-                <span className="block text-base font-extrabold text-[#26364B]">{preset.title}</span>
-                <span className="block text-sm text-[#5D6A78]">{preset.category}</span>
-              </span>
-            </button>
-          ))}
+      {extractionError && (
+        <div className="flex gap-3 rounded-2xl border border-[#F1CD82] bg-[#FFF7E4] p-4 text-[#664A12]">
+          <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0" />
+          <p className="text-base font-semibold leading-relaxed">{extractionError}</p>
         </div>
-      </div>
+      )}
 
-      {(selectedFile || selectedPreset) && (
+      {selectedFile && (
         <section className="space-y-4 rounded-2xl border border-[#D4DEDB] bg-white p-4">
           <label className="block">
             <span className="mb-1.5 block text-sm font-extrabold text-[#334359]">Nombre</span>
@@ -246,7 +214,7 @@ export const AddDocumentScreen = ({
       )}
 
       <button
-        disabled={(!selectedFile && !selectedPreset) || isExtracting}
+        disabled={!selectedFile || isExtracting}
         onClick={analyze}
         className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#087F73] px-5 text-lg font-extrabold text-white disabled:bg-[#A8B5B2]"
       >

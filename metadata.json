@@ -1,6 +1,6 @@
 {
   "name": "Historia Clara",
-  "description": "Prototipo accesible de historia personal de salud con documentos sintéticos, revisión humana y consultas con referencias verificables.",
+  "description": "Prototipo accesible de historia personal de salud con revisión humana y consultas con referencias verificables.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
