@@ -266,20 +266,32 @@ export class OllamaLocalInferenceEngine extends FakeLocalInferenceEngine {
 
     const prompt = `Analizá esta${
       imagesBase64.length > 1 ? 's páginas' : ' imagen'
-    } de un documento médico. Puede tener letra manuscrita difícil de leer, mala
-iluminación o estar en ángulo.
+    } de un documento médico de la persona que usa esta app (es su propio
+documento, no el de un tercero). Puede tener letra manuscrita difícil de
+leer, mala iluminación o estar en ángulo.
 
 PASO 1 (obligatorio, mental, no lo muestres aparte): recorré la imagen de
 arriba hacia abajo y leé literalmente cada línea de texto que puedas
-distinguir: encabezados, nombre del paciente, fecha, cada medicamento
-recetado con su dosis y frecuencia, firma, etc. Basate únicamente en esa
-lectura línea por línea para completar el JSON de abajo.
+distinguir: encabezados, fecha, cada medicamento recetado con su dosis y
+frecuencia, o cada parámetro de laboratorio con su valor numérico y unidad,
+firma, etc. Basate únicamente en esa lectura línea por línea para completar
+el JSON de abajo.
 
-PROHIBIDO: escribir un resumen genérico tipo "el documento contiene datos
-de identificación y resultados" o "es difícil de leer". Si podés distinguir
-aunque sea una palabra o un número, usalo. Solo marcá "(ilegible)" en un
-campo puntual cuando de verdad no se distingue ningún carácter ahí, nunca
-para el documento completo.
+PROHIBIDO:
+- Frases sobre a quién pertenece el documento ("el informe pertenece a...",
+  "el paciente es...", "no se indica el nombre del paciente"). Es obvio que
+  es el documento de la persona; no lo menciones, andá directo a los datos.
+- Resúmenes genéricos o vagos tipo "es difícil de leer", "los valores están
+  dentro del rango normal para la mayoría de los parámetros" o "se
+  realizaron varios análisis". Si hay valores numéricos en la imagen (de
+  laboratorio, signos vitales, dosis), el resumen tiene que nombrarlos uno
+  por uno con su cifra exacta, no calificarlos en general.
+- Omitir un valor solo porque hay muchos: listalos todos en "campos", cada
+  parámetro con su propia entrada.
+
+Si podés distinguir aunque sea una palabra o un número, usalo. Solo marcá
+"(ilegible)" en un campo puntual cuando de verdad no se distingue ningún
+carácter ahí, nunca para el documento completo.
 
 No inventes datos que no estén en la imagen. Respondé exclusivamente con
 JSON válido, siempre:
@@ -287,7 +299,7 @@ JSON válido, siempre:
   "titulo": "nombre breve del documento",
   "tipo": "Análisis|Imagenología|Especialista|Receta|Otro",
   "institucion": "nombre de la institución o médico, texto visible o No informada",
-  "resumen": "lista concreta de lo leído: paciente, y cada medicamento con dosis/frecuencia si es receta, o los hallazgos si es otro tipo de documento",
+  "resumen": "hechos concretos con cifras exactas: cada medicamento con dosis/frecuencia si es receta, o cada parámetro de laboratorio con su valor y unidad si es un análisis",
   "evidencia_textual": "transcripción línea por línea de todo el texto legible, en el mismo orden que aparece",
   "campos": [{"nombre":"campo","valor":"valor","unidad":"unidad opcional"}],
   "necesita_confirmacion": ["datos borrosos, dudosos o manuscritos a revisar"]
