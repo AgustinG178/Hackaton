@@ -105,9 +105,20 @@ export const AddDocumentScreen = ({
               {extractedDocument.fields.map((field, index) => (
                 <div key={`${field.label}-${index}`} className="rounded-xl bg-[#F1F5F4] p-3">
                   <p className="text-sm font-bold text-[#617080]">{field.label}</p>
-                  <p className="mt-0.5 text-base font-extrabold text-[#17243A]">
-                    {field.value} {field.unit || ''}
-                  </p>
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    <input
+                      value={field.value}
+                      onChange={(event) => {
+                        const fields = [...extractedDocument.fields];
+                        fields[index] = { ...field, value: event.target.value };
+                        setExtractedDocument({ ...extractedDocument, fields });
+                      }}
+                      className="min-h-11 w-full rounded-lg border-2 border-transparent bg-transparent px-2 -mx-2 text-base font-extrabold text-[#17243A] outline-none focus:border-[#087F73] focus:bg-white"
+                    />
+                    {field.unit && (
+                      <span className="shrink-0 text-base font-extrabold text-[#17243A]">{field.unit}</span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
