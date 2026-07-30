@@ -60,3 +60,4 @@ El comportamiento esperado es:
 
 No se debe mostrar el selector del modelo al usuario final ni usar respuestas
 simuladas sin una etiqueta visible.
+# Hackaton
