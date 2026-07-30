@@ -80,6 +80,22 @@ export const DocumentDetailModal = ({
             </div>
           </section>
 
+          {document.imagePreviewUrls && document.imagePreviewUrls.length > 0 && (
+            <section>
+              <h3 className="mb-2 text-lg font-black text-[#17243A]">Documento original</h3>
+              <div className="flex gap-2 overflow-x-auto rounded-2xl border border-[#D4DEDB] bg-white p-3">
+                {document.imagePreviewUrls.map((url, index) => (
+                  <img
+                    key={index}
+                    src={url}
+                    alt={`Página ${index + 1} de ${document.title}`}
+                    className="h-64 shrink-0 rounded-xl border border-[#D4DEDB] object-contain"
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
           <button
             onClick={() => setShowOriginal((current) => !current)}
             className="min-h-12 w-full rounded-xl border-2 border-[#AAC7C3] bg-white px-4 text-base font-bold text-[#285D57]"

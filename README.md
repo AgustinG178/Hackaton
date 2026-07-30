@@ -61,3 +61,37 @@ El comportamiento esperado es:
 No se debe mostrar el selector del modelo al usuario final ni generar
 respuestas simuladas: si no hay modelo conectado, se debe mostrar un error.
 # Hackaton
+
+## Usar desde el teléfono (app instalable)
+
+Historia Clara se instala como aplicación: ícono propio, pantalla completa y
+sin barra del navegador.
+
+1. En la notebook, con Ollama abierto y el modelo disponible:
+
+```
+ollama run gemma4:e4b
+npm run dev
+```
+
+2. Averiguá la IP de la notebook en la red WiFi (`ipconfig` en Windows,
+   `ip addr` en Linux). Por ejemplo `192.168.0.15`.
+
+3. Con el teléfono en la **misma red WiFi**, abrí en Chrome:
+   `http://192.168.0.15:3000`
+
+4. Menú de Chrome → **Agregar a pantalla de inicio** / **Instalar aplicación**.
+
+La app queda en el cajón de aplicaciones con su ícono. Al abrirla se ve a
+pantalla completa, sin interfaz de navegador.
+
+La inferencia sigue ejecutándose en la notebook: el teléfono es la interfaz y
+consulta el modelo por la red local. No se envía nada a la nube.
+
+Alternativa por cable, si la red del evento aísla los dispositivos entre sí:
+
+```
+adb reverse tcp:3000 tcp:3000
+```
+
+y en el teléfono abrir `http://localhost:3000`.

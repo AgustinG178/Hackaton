@@ -18,6 +18,7 @@ export interface MedicalDocument {
   tags: string[];
   confirmed?: boolean;
   imagePreviewUrl?: string;
+  imagePreviewUrls?: string[];
 }
 
 export interface ChatMessage {

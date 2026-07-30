@@ -59,3 +59,36 @@ button:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---- Comportamiento de aplicación instalada en el teléfono ---- */
+
+html {
+  /* Respeta el notch y la barra de gestos al correr en pantalla completa */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+  /* Evita el rebote elástico del scroll, que delata que es un navegador */
+  overscroll-behavior-y: none;
+}
+
+body {
+  /* 100dvh sigue la barra de direcciones al aparecer y desaparecer */
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+  /* Sin resaltado azul al tocar: los botones se sienten nativos */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Los inputs de 16px evitan que iOS haga zoom automático al enfocarlos */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* El texto de la interfaz no se selecciona al mantener presionado,
+   pero el contenido del documento sí, para poder copiarlo. */
+button,
+label,
+nav {
+  -webkit-user-select: none;
+  user-select: none;
+}

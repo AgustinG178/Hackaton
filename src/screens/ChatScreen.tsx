@@ -10,6 +10,7 @@ interface ChatScreenProps {
   isGenerating: boolean;
   onClearChat: () => void;
   isConnected: boolean;
+  onNavigateToAdd: () => void;
 }
 
 export const ChatScreen = ({
@@ -20,18 +21,53 @@ export const ChatScreen = ({
   isGenerating,
   onClearChat,
   isConnected,
+  onNavigateToAdd,
 }: ChatScreenProps) => {
   const [inputPrompt, setInputPrompt] = useState('');
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const suggestedPrompts = [
-    '¿Cuál fue el último medicamento que me recetaron?',
-    '¿Cómo estoy anímicamente?',
-    '¿Cuál fue mi último estudio?',
-  ];
+  // Las sugerencias se arman con los documentos que la persona realmente
+  // guardó. Preguntar por una receta cuando no hay ninguna sólo produce un
+  // "no consta" que hace parecer que la app no funciona.
+  const suggestedPrompts = (() => {
+    const prompts: string[] = [];
+    const categories = new Set(documents.map((document) => document.category));
+
+    if (categories.has('Receta')) {
+      prompts.push('¿Qué medicamentos tengo indicados y en qué dosis?');
+    }
+    if (categories.has('Análisis')) {
+      prompts.push('¿Qué valores figuran en mi último análisis?');
+    }
+    if (categories.has('Imagenología')) {
+      prompts.push('¿Qué dice mi último estudio por imágenes?');
+    }
+    if (documents.length > 0) {
+      prompts.push('Hacé un resumen de mi historia');
+      const newest = [...documents].sort((a, b) => b.isoDate.localeCompare(a.isoDate))[0];
+      if (newest) prompts.push(`¿Qué dice "${newest.title}"?`);
+    }
+    return prompts.slice(0, 3);
+  })();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isGenerating]);
+
+  // Un modelo local puede tardar decenas de segundos. Sin un contador, la
+  // espera parece un cuelgue: mostrar el tiempo transcurrido deja claro que
+  // sigue trabajando.
+  useEffect(() => {
+    if (!isGenerating) {
+      setElapsedSeconds(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const interval = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [isGenerating]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -88,7 +124,25 @@ export const ChatScreen = ({
         </div>
       )}
 
-      {messages.length <= 1 && (
+      {documents.length === 0 && (
+        <div className="mb-3 rounded-2xl border border-[#D4DEDB] bg-white p-4">
+          <p className="text-base font-extrabold text-[#17243A]">
+            Todavía no hay documentos guardados
+          </p>
+          <p className="mt-1 text-base leading-relaxed text-[#536273]">
+            Agregá una foto o un PDF de un estudio, una receta o una consulta. Las respuestas
+            de este chat salen únicamente de los documentos que confirmes.
+          </p>
+          <button
+            onClick={onNavigateToAdd}
+            className="mt-3 flex min-h-13 w-full items-center justify-center rounded-2xl bg-[#087F73] px-4 text-base font-extrabold text-white"
+          >
+            Agregar mi primer documento
+          </button>
+        </div>
+      )}
+
+      {messages.length <= 1 && suggestedPrompts.length > 0 && (
         <div className="mb-3">
           <div className="mb-2 flex items-center gap-2 text-sm font-extrabold text-[#455465]">
             <Sparkles className="h-4 w-4 text-[#087F73]" />
@@ -150,6 +204,9 @@ export const ChatScreen = ({
           <div className="flex items-center gap-2 text-base font-semibold text-[#526171]">
             <LoaderCircle className="h-5 w-5 animate-spin text-[#087F73]" />
             Buscando en tus documentos…
+            {elapsedSeconds > 2 && (
+              <span className="text-sm font-bold text-[#74818D]">{elapsedSeconds}s</span>
+            )}
           </div>
         )}
         <div ref={messagesEndRef} />

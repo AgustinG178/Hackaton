@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useState } from 'react';
+import { ChangeEvent, useState } from 'react';
 import {
   AlertTriangle,
   Camera,
@@ -8,6 +8,8 @@ import {
   Upload,
 } from 'lucide-react';
 import { LocalInferenceEngine } from '../services/LocalInferenceEngine';
+import { pdfFileToImages } from '../services/pdfToImages';
+import { makeStorablePreview } from '../services/enhanceImageForOCR';
 import { MedicalDocument } from '../types';
 
 interface AddDocumentScreenProps {
@@ -22,35 +24,50 @@ export const AddDocumentScreen = ({
   nextDocNumber,
 }: AddDocumentScreenProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [pdfPageFiles, setPdfPageFiles] = useState<File[]>([]);
+  const [isConvertingPdf, setIsConvertingPdf] = useState(false);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<MedicalDocument['category']>('Otro');
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionError, setExtractionError] = useState<string | null>(null);
   const [extractedDocument, setExtractedDocument] = useState<MedicalDocument | null>(null);
 
-  useEffect(() => {
-    if (!selectedFile?.type.startsWith('image/')) {
-      setPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(selectedFile);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [selectedFile]);
-
-  const selectFile = (event: ChangeEvent<HTMLInputElement>) => {
+  const selectFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    setSelectedFile(file);
+    setExtractionError(null);
     setTitle(file.name.replace(/\.[^/.]+$/, ''));
+
+    if (file.type === 'application/pdf') {
+      setIsConvertingPdf(true);
+      try {
+        const pages = await pdfFileToImages(file);
+        setSelectedFile(pages[0]?.file ?? file);
+        setPdfPageFiles(pages.map((page) => page.file));
+        const previews = await Promise.all(
+          pages.map((page) => makeStorablePreview(page.file).catch(() => page.dataUrl)),
+        );
+        setPreviewUrls(previews);
+      } catch {
+        setExtractionError('No se pudo leer el PDF. Probá con una foto del documento.');
+      } finally {
+        setIsConvertingPdf(false);
+      }
+    } else {
+      setSelectedFile(file);
+      setPdfPageFiles([]);
+      const preview = await makeStorablePreview(file).catch(() => '');
+      setPreviewUrls(preview ? [preview] : []);
+    }
   };
 
   const analyze = async () => {
     setIsExtracting(true);
     setExtractionError(null);
     try {
-      const result = await engine.extractDocument(title || 'Documento médico', category, selectedFile || undefined);
+      const filesForGemma = pdfPageFiles.length > 0 ? pdfPageFiles : selectedFile ? [selectedFile] : [];
+      const result = await engine.extractDocument(title || 'Documento médico', category, filesForGemma);
       const now = new Date();
       setExtractedDocument({
         ...result,
@@ -62,6 +79,7 @@ export const AddDocumentScreen = ({
         }),
         isoDate: now.toISOString().slice(0, 10),
         title: title || result.title,
+        imagePreviewUrls: previewUrls,
       });
     } catch (error) {
       setExtractionError(
@@ -86,6 +104,45 @@ export const AddDocumentScreen = ({
         <div className="rounded-2xl border border-[#B9D9D4] bg-[#E7F5F2] p-4 text-base font-semibold text-[#174A45]">
           Gemma leyó esta foto localmente. Compará los datos con el documento antes de guardarlos.
         </div>
+
+        {extractedDocument.tags.some((tag) =>
+          tag.startsWith('Revisar: Descartado por no aparecer'),
+        ) && (
+          <div className="flex gap-3 rounded-2xl border border-[#F1CD82] bg-[#FFF7E4] p-4 text-[#664A12]">
+            <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0" />
+            <div>
+              <p className="text-base font-semibold leading-relaxed">
+                Se descartaron datos que el modelo propuso pero que no figuran en el documento.
+                No se guardan.
+              </p>
+              <ul className="mt-2 space-y-1 text-sm font-bold">
+                {extractedDocument.tags
+                  .filter((tag) => tag.startsWith('Revisar: Descartado por no aparecer'))
+                  .map((tag, index) => (
+                    <li key={index}>
+                      {tag.replace(
+                        'Revisar: Descartado por no aparecer en el documento: ',
+                        '· ',
+                      )}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {extractedDocument.imagePreviewUrls && extractedDocument.imagePreviewUrls.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto rounded-2xl border border-[#D4DEDB] bg-white p-3">
+            {extractedDocument.imagePreviewUrls.map((url, index) => (
+              <img
+                key={index}
+                src={url}
+                alt={`Página ${index + 1} del documento`}
+                className="h-40 shrink-0 rounded-xl border border-[#D4DEDB] object-contain"
+              />
+            ))}
+          </div>
+        )}
 
         <section className="space-y-4 rounded-2xl border border-[#D4DEDB] bg-white p-5 shadow-sm">
           <label className="block">
@@ -168,26 +225,59 @@ export const AddDocumentScreen = ({
       </div>
 
       <section className="rounded-2xl border-2 border-dashed border-[#8DBBB5] bg-white p-5 text-center">
-        {previewUrl ? (
-          <img
-            src={previewUrl}
-            alt="Vista previa del documento"
-            className="mx-auto mb-4 max-h-52 rounded-xl border border-[#D4DEDB] object-contain"
-          />
+        {isConvertingPdf ? (
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#E0F2EF] text-[#087F73]">
+            <LoaderCircle className="h-8 w-8 animate-spin" />
+          </div>
+        ) : previewUrls.length > 0 ? (
+          <div className="mx-auto mb-4 flex max-h-52 gap-2 overflow-x-auto">
+            {previewUrls.map((url, index) => (
+              <img
+                key={index}
+                src={url}
+                alt={`Página ${index + 1} del documento`}
+                className="h-52 shrink-0 rounded-xl border border-[#D4DEDB] object-contain"
+              />
+            ))}
+          </div>
         ) : (
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#E0F2EF] text-[#087F73]">
             <Camera className="h-8 w-8" />
           </div>
         )}
         <h3 className="text-xl font-extrabold text-[#17243A]">
-          {selectedFile ? selectedFile.name : 'Elegí una foto del documento'}
+          {isConvertingPdf
+            ? 'Convirtiendo PDF…'
+            : selectedFile
+              ? selectedFile.name
+              : 'Elegí una foto o un PDF'}
         </h3>
-        <p className="mt-2 text-base text-[#536273]">Usá buena luz y evitá cortar los bordes.</p>
-        <label className="mt-4 inline-flex min-h-14 cursor-pointer items-center gap-2 rounded-2xl bg-[#087F73] px-5 text-base font-extrabold text-white">
-          <Upload className="h-5 w-5" />
-          Seleccionar imagen
-          <input type="file" accept="image/*" capture="environment" onChange={selectFile} className="hidden" />
-        </label>
+        <p className="mt-2 text-base text-[#536273]">
+          Sacá la foto con buena luz, sin cortar los bordes. También podés subir un PDF.
+        </p>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <label className="inline-flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#087F73] px-5 text-base font-extrabold text-white">
+            <Camera className="h-5 w-5" />
+            Sacar foto
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={selectFile}
+              className="hidden"
+            />
+          </label>
+          <label className="inline-flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-[#087F73] bg-white px-5 text-base font-extrabold text-[#087F73]">
+            <Upload className="h-5 w-5" />
+            Elegir archivo o PDF
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={selectFile}
+              className="hidden"
+            />
+          </label>
+        </div>
       </section>
 
       {extractionError && (
@@ -225,7 +315,7 @@ export const AddDocumentScreen = ({
       )}
 
       <button
-        disabled={!selectedFile || isExtracting}
+        disabled={!selectedFile || isExtracting || isConvertingPdf}
         onClick={analyze}
         className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#087F73] px-5 text-lg font-extrabold text-white disabled:bg-[#A8B5B2]"
       >

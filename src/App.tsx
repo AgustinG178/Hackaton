@@ -46,7 +46,18 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('historia-clara-documents-v2', JSON.stringify(documents));
+    try {
+      localStorage.setItem('historia-clara-documents-v2', JSON.stringify(documents));
+    } catch {
+      // localStorage ronda los 5 MB y las vistas previas son lo más pesado.
+      // Antes que perder los datos clínicos confirmados, se reintenta sin ellas.
+      try {
+        const withoutPreviews = documents.map(({ imagePreviewUrls: _ignored, ...rest }) => rest);
+        localStorage.setItem('historia-clara-documents-v2', JSON.stringify(withoutPreviews));
+      } catch {
+        // Si aun así no entra, se sigue trabajando en memoria.
+      }
+    }
   }, [documents]);
 
   useEffect(() => {
@@ -160,6 +171,7 @@ export default function App() {
             isGenerating={isGenerating}
             onClearChat={() => setMessages([])}
             isConnected={isEngineConnected}
+            onNavigateToAdd={() => setActiveTab('add')}
           />
         )}
       </main>
