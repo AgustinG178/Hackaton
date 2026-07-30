@@ -267,20 +267,28 @@ export class OllamaLocalInferenceEngine extends FakeLocalInferenceEngine {
     const prompt = `Analizá esta${
       imagesBase64.length > 1 ? 's páginas' : ' imagen'
     } de un documento médico. Puede tener letra manuscrita difícil de leer, mala
-iluminación o estar en ángulo. Hacé tu mejor esfuerzo: extraé todo lo que
-puedas leer con razonable confianza, aunque sea parcial. No inventes datos
-que no estén en la imagen, pero tampoco te niegues a responder solo porque
-hay letra manuscrita, partes borrosas o baja calidad de foto. Si una
-palabra puntual es realmente ilegible, escribí "(ilegible)" en ese campo en
-vez de dejar todo el documento sin procesar.
-Respondé exclusivamente con JSON válido, siempre, sin importar cuán difícil
-sea leer la imagen:
+iluminación o estar en ángulo.
+
+PASO 1 (obligatorio, mental, no lo muestres aparte): recorré la imagen de
+arriba hacia abajo y leé literalmente cada línea de texto que puedas
+distinguir: encabezados, nombre del paciente, fecha, cada medicamento
+recetado con su dosis y frecuencia, firma, etc. Basate únicamente en esa
+lectura línea por línea para completar el JSON de abajo.
+
+PROHIBIDO: escribir un resumen genérico tipo "el documento contiene datos
+de identificación y resultados" o "es difícil de leer". Si podés distinguir
+aunque sea una palabra o un número, usalo. Solo marcá "(ilegible)" en un
+campo puntual cuando de verdad no se distingue ningún carácter ahí, nunca
+para el documento completo.
+
+No inventes datos que no estén en la imagen. Respondé exclusivamente con
+JSON válido, siempre:
 {
-  "titulo": "nombre breve",
+  "titulo": "nombre breve del documento",
   "tipo": "Análisis|Imagenología|Especialista|Receta|Otro",
-  "institucion": "texto visible o No informada",
-  "resumen": "hechos principales que pudiste leer, sin diagnóstico nuevo",
-  "evidencia_textual": "transcripción de lo que alcanzás a leer, aunque sea parcial",
+  "institucion": "nombre de la institución o médico, texto visible o No informada",
+  "resumen": "lista concreta de lo leído: paciente, y cada medicamento con dosis/frecuencia si es receta, o los hallazgos si es otro tipo de documento",
+  "evidencia_textual": "transcripción línea por línea de todo el texto legible, en el mismo orden que aparece",
   "campos": [{"nombre":"campo","valor":"valor","unidad":"unidad opcional"}],
   "necesita_confirmacion": ["datos borrosos, dudosos o manuscritos a revisar"]
 }`;
@@ -294,9 +302,9 @@ sea leer la imagen:
         images: imagesBase64,
         format: 'json',
         stream: false,
-        think: false,
+        think: true,
         keep_alive: '1h',
-        options: { temperature: 0.05, num_predict: 650, top_k: 10 },
+        options: { temperature: 0.05, num_predict: 1100, top_k: 10 },
       }),
     });
     if (!response.ok) throw new Error(`Gemma no pudo analizar la imagen (${response.status}).`);
